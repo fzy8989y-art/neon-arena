@@ -1,0 +1,164 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEON ARENA</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 22px;
+      background: #080b16;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    h1 {
+      color: #24eaff;
+      text-shadow: 0 0 18px #24eaff;
+      letter-spacing: 3px;
+    }
+    .panel {
+      max-width: 520px;
+      margin: 25px auto;
+      padding: 20px;
+      border: 1px solid #1bdcf4;
+      border-radius: 18px;
+      background: #11182a;
+      box-shadow: 0 0 20px #092f48;
+    }
+    .arena {
+      min-height: 190px;
+      border: 2px solid #24eaff;
+      border-radius: 14px;
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+      background: #080b16;
+    }
+    .empty {
+      margin: auto;
+      color: #8293a8;
+    }
+    .player {
+      flex: 1;
+      min-width: 0;
+      padding: 12px 3px;
+      border-left: 1px solid #24eaff;
+      overflow-wrap: anywhere;
+    }
+    .player:last-child { border-left: 0; }
+    .percent {
+      display: block;
+      color: #24eaff;
+      font-size: 20px;
+      margin-top: 12px;
+    }
+    #status {
+      color: #a8b7c9;
+      margin-top: 18px;
+    }
+    button {
+      background: #24eaff;
+      color: #07111d;
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>NEON ARENA</h1>
+  <p>ONE ARENA · ONE COMMUNITY</p>
+
+  <div class="panel">
+    <h2>SHARED ARENA</h2>
+    <div class="arena" id="arena">
+      <span class="empty">در حال دریافت وضعیت آرنا...</span>
+    </div>
+    <p id="status">در حال اتصال...</p>
+    <button onclick="refreshArena()">به‌روزرسانی</button>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "sb_publishable_FJYe7PRMHBhqMF-YPvmeTg_Vj8vn_DS";
+    const SUPABASE_KEY = "sb_publishable_FJYe7PRMHBhqMF-YPvmeTg_Vj8vn_DS";
+
+    const client = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
+
+    const arena = document.getElementById("arena");
+    const statusText = document.getElementById("status");
+
+    async function refreshArena() {
+      statusText.textContent = "در حال دریافت اطلاعات...";
+      const { data, error } = await client.rpc("get_arena_status");
+
+      if (error) {
+        statusText.textContent = "خطا در اتصال؛ تنظیمات را بررسی کن.";
+        console.error(error);
+        return;
+      }
+
+      const players = data.players || [];
+
+      if (players.length === 0) {
+        arena.innerHTML =
+          '<span class="empty">آرنا خالی است · 0%</span>';
+      } else {
+        const total = players.reduce(
+          (sum, player) => sum + player.points, 0
+        );
+
+        arena.replaceChildren();
+
+        players.forEach(player => {
+          const section = document.createElement("div");
+          section.className = "player";
+          section.style.flexGrow = player.points;
+          section.style.flexBasis = "0";
+
+          const name = document.createElement("div");
+          name.textContent = player.display_name;
+
+          const percent = document.createElement("span");
+          percent.className = "percent";
+          percent.textContent =
+            Math.round(player.points / total * 100) + "%";
+
+          section.append(name, percent);
+          arena.appendChild(section);
+        });
+      }
+
+      statusText.textContent =
+        "وضعیت: " + data.arena.status +
+        " | بازیکنان: " + players.length;
+    }
+
+    client
+      .channel("shared-arena")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "arena_players" },
+        refreshArena
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "arena_state" },
+        refreshArena
+      )
+      .subscribe();
+
+    refreshArena();
+    window.Telegram?.WebApp?.ready();
+  </script>
+</body>
+</html>
